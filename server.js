@@ -2,6 +2,7 @@ require('colors');
 require('dotenv').config();
 require('express-async-errors');
 
+const path = require('path');
 const express = require('express');
 const compression = require('compression');
 const fileUpload = require('express-fileupload');
@@ -11,27 +12,39 @@ const router = express.Router();
 
 const connectToDatabase = require('./db');
 const rootRouter = require('./src/routes/index')(router);
-const { NotFoundError } = require('./src/utils/appError');
 const isProduction = process.env.NODE_ENV === 'production';
 const ErrorHandler = require('./src/middlewares/errorHandler');
 
-app.use(compression());
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
-app.use(fileUpload({ createParentPath: true }));
+app.use(compression()); // Node.js compression middleware
+app.use(express.json()); // For parsing application/json
+app.use(express.urlencoded({ extended: false })); // For parsing application/x-www-form-urlencoded
+app.use(fileUpload({ createParentPath: true })); // For adding the 'req.files' property
+
+app.use(express.static(path.resolve(__dirname, './client/build')));
 
 if (isProduction) {
   app.set('trust proxy', 1); // Trust first proxy
 } else {
-  app.use(require('morgan')('dev'));
+  app.use(require('morgan')('dev')); // Dev logging middleware
 }
 
-app.use('/api/v1', rootRouter);
+app.use('/api/v1', rootRouter); // For mounting the root router on the specified path
 
-app.use(() => {
-  throw new NotFoundError();
+// All other GET requests not handled before will return our React app
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    if (/(.ico|.js|.css|.jpg|.png|.map)$/i.test(req.path)) {
+      next();
+    } else {
+      res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+      res.header('Expires', '-1');
+      res.header('Pragma', 'no-cache');
+      res.sendFile(path.join(__dirname, './client/build'));
+    }
+  } else next();
 });
 
+// For handling server errors and all other errors that might occur
 app.use(ErrorHandler);
 
 (async () => {
