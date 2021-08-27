@@ -1,2 +1,3 @@
 # team-galileo-poc
- Proof of concept for Team Galileo
+
+Proof of concept for Team Galileo
